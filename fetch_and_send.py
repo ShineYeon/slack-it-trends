@@ -21,6 +21,8 @@ from datetime import datetime, timezone, timedelta
 import requests
 import feedparser
 
+from deep_translator import GoogleTranslator
+
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 HN_TOP_N = int(os.getenv("HN_TOP_N", 5))
 RSS_TOP_N = int(os.getenv("RSS_TOP_N", 3))
@@ -32,6 +34,17 @@ RSS_FEEDS = [
 
 HN_BASE = "https://hacker-news.firebaseio.com/v0"
 
+def translate_to_ko(text: str) -> str:
+    """영문 텍스트를 한국어로 번역한다."""
+    try:
+        if not text or text.isspace():
+            return""
+        translated = GoogleTranslator(source='auto', target='ko').translate(text)
+        return translated
+    except Exception as e:
+        print(f"[WARN] 번역 실패: {e}", file=sys.stderr)
+        return text  # 번역 실패 시 원문 반환
+
 def fetch_hacker_news(top_n: int) -> list[dict]:
     """Hacker News 상위 스토리를 가져온다."""
     try:
@@ -42,14 +55,24 @@ def fetch_hacker_news(top_n: int) -> list[dict]:
             data = r.json()
             if not data:
                 continue
+
+            orig_title = data.get("title", "(제목 없음)")
+
+            print(f"  -HN 파싱 및 번역 중: {orig_title[:30]}...")
+            ko_summary = translate_to_ko(orig_title) # 번역 요약본 생성
+
             items.append({
-                "title": data.get("title", "(제목 없음)"),
+                "title": orig_title,
+                "ko_summary": ko_summary,
                 "url": data.get("url") or f"https://news.ycombinator.com/item?id={sid}",
                 "score": data.get("score", 0),
                 "source": "Hacker News",
             })
+
             time.sleep(0.2)  # API 부하 방지
+
         return items
+
     except Exception as e:
         print(f"[WARN] Hacker News 수집 실패: {e}", file=sys.stderr)
         return []
@@ -61,8 +84,12 @@ def fetch_rss_feeds(feeds: list[str], per_feed: int) -> list[dict]:
         try:
             parsed = feedparser.parse(url)
             for entry in parsed.entries[:per_feed]:
+                orig_title = entry.get("title", "(제목 없음)")
+                print(f"  -RSS 파싱 및 번역 중: {orig_title[:30]}...")
+                ko_summary = translate_to_ko(orig_title) # 번역 요약본 생성
                 items.append({
-                    "title": entry.get("title", "(제목 없음)"),
+                    "title": orig_title,
+                    "ko_summary": ko_summary,
                     "url": entry.get("link", ""),
                     "source": parsed.feed.get("title", url),
                 })
@@ -93,7 +120,7 @@ def build_slack_message(hn_items: list[dict], rss_items: list[dict]) -> dict:
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"{i}. <{item['url']}|{item['title']}>{score_str}",
+                    "text": f"{i}. <{item['url']}|{item['title']}>{score_str}\n👉 *한글 요약:* _{item['ko_summary']}_",
                 },
             })
 
@@ -104,11 +131,12 @@ def build_slack_message(hn_items: list[dict], rss_items: list[dict]) -> dict:
             "text": {"type": "mrkdwn", "text": "*📰 주요 IT 뉴스*"}
         })
         for i, item in enumerate(rss_items, start=1):
+            # 🌟 슬랙 메시지 구조 변경: 원문 링크 하단에 한글 요약 한 줄 배치
             blocks.append({
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"{i}. <{item['url']}|{item['title']}>\n _{item['source']}_",
+                    "text": f"{i}. <{item['url']}|{item['title']}>\n👉 *한글 요약:* _{item['ko_summary']}_\n _출처: {item['source']}_",
                 }
             })
     if not hn_items and not rss_items:
