@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-""" 
-매일 아침 최신 IT 트렌드를 수집해서 Slack으로 전송합니다.
-
-수집 소스:
-  - Hacker News 상위 스토리
-  - 지정 RSS 피드 (기본: TechCrunch, The Verge)
-
-환경 변수:
-  SLACK_WEBHOOK_URL  (필수) Slack Incoming Webhook URL
-  HN_TOP_N           (선택) Hacker News에서 가져올 상위 스토리 수 (기본: 5)
-  RSS_TOP_N          (선택) RSS 피드에서 가져올 상위 기사 수 (기본: 3)
-"""
-
 import json
 import os
 import sys
@@ -20,8 +7,8 @@ from datetime import datetime, timezone, timedelta
 
 import requests
 import feedparser
-
-from deep_translator import GoogleTranslator
+# 🌟 무료 번역 라이브러리 추가
+from deep_translator import GoogleTranslator 
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 HN_TOP_N = int(os.getenv("HN_TOP_N", 5))
@@ -34,16 +21,17 @@ RSS_FEEDS = [
 
 HN_BASE = "https://hacker-news.firebaseio.com/v0"
 
+# 🌟 [신규 함수] 영문 제목을 한글 짧은 요약으로 번역하는 유틸리티
 def translate_to_ko(text: str) -> str:
-    """영문 텍스트를 한국어로 번역한다."""
     try:
         if not text or text.isspace():
-            return""
-        translated = GoogleTranslator(source='auto', target='ko').translate(text)
+            return ""
+        # 구글 번역기를 이용해 영어를 한국어로 변환합니다.
+        translated = GoogleTranslator(source='en', target='ko').translate(text)
         return translated
     except Exception as e:
         print(f"[WARN] 번역 실패: {e}", file=sys.stderr)
-        return text  # 번역 실패 시 원문 반환
+        return text # 번역 실패 시 원문 유지
 
 def fetch_hacker_news(top_n: int) -> list[dict]:
     """Hacker News 상위 스토리를 가져온다."""
@@ -55,24 +43,21 @@ def fetch_hacker_news(top_n: int) -> list[dict]:
             data = r.json()
             if not data:
                 continue
-
+                
             orig_title = data.get("title", "(제목 없음)")
-
-            print(f"  -HN 파싱 및 번역 중: {orig_title[:30]}...")
-            ko_summary = translate_to_ko(orig_title) # 번역 요약본 생성
+            print(f"  - HN 파싱 및 번역 중: {orig_title[:30]}...")
+            # 🌟 번역 요약본 생성
+            ko_summary = translate_to_ko(orig_title)
 
             items.append({
                 "title": orig_title,
-                "ko_summary": ko_summary,
+                "ko_summary": ko_summary, # 🌟 추가
                 "url": data.get("url") or f"https://news.ycombinator.com/item?id={sid}",
                 "score": data.get("score", 0),
                 "source": "Hacker News",
             })
-
-            time.sleep(0.2)  # API 부하 방지
-
+            time.sleep(0.2)
         return items
-
     except Exception as e:
         print(f"[WARN] Hacker News 수집 실패: {e}", file=sys.stderr)
         return []
@@ -85,11 +70,13 @@ def fetch_rss_feeds(feeds: list[str], per_feed: int) -> list[dict]:
             parsed = feedparser.parse(url)
             for entry in parsed.entries[:per_feed]:
                 orig_title = entry.get("title", "(제목 없음)")
-                print(f"  -RSS 파싱 및 번역 중: {orig_title[:30]}...")
-                ko_summary = translate_to_ko(orig_title) # 번역 요약본 생성
+                print(f"  - RSS 파싱 및 번역 중: {orig_title[:30]}...")
+                # 🌟 번역 요약본 생성
+                ko_summary = translate_to_ko(orig_title)
+
                 items.append({
                     "title": orig_title,
-                    "ko_summary": ko_summary,
+                    "ko_summary": ko_summary, # 🌟 추가
                     "url": entry.get("link", ""),
                     "source": parsed.feed.get("title", url),
                 })
@@ -105,7 +92,7 @@ def build_slack_message(hn_items: list[dict], rss_items: list[dict]) -> dict:
     blocks = [
         {
             "type": "header", 
-            "text": {"type": "plain_text", "text": f"🌅 IT 트렌드 - ({today})"}},
+            "text": {"type": "plain_text", "text": f"🌅 IT 트렌드 한글 요약 - ({today})"}},
         {"type": "divider"},
     ]
 
@@ -116,6 +103,7 @@ def build_slack_message(hn_items: list[dict], rss_items: list[dict]) -> dict:
         for i, item in enumerate(hn_items, start=1):
             score = item.get("score")
             score_str = f" ({score}pt)" if score is not None else ""
+            # 🌟 슬랙 메시지 구조 변경: 원문 링크 하단에 한글 요약 한 줄 배치
             blocks.append({
                 "type": "section",
                 "text": {
@@ -139,6 +127,7 @@ def build_slack_message(hn_items: list[dict], rss_items: list[dict]) -> dict:
                     "text": f"{i}. <{item['url']}|{item['title']}>\n👉 *한글 요약:* _{item['ko_summary']}_\n _출처: {item['source']}_",
                 }
             })
+            
     if not hn_items and not rss_items:
         blocks.append({
             "type": "section",
@@ -148,7 +137,7 @@ def build_slack_message(hn_items: list[dict], rss_items: list[dict]) -> dict:
     blocks.append({
         "type": "context",
         "elements": [
-            {"type": "plain_text", "text": "자동 수집 봇 - Github Actions | 데이터 출처: Hacker News, RSS 피드"}]
+            {"type": "plain_text", "text": "자동 수집 및 한글 요약 봇 - Github Actions | 데이터 출처: Hacker News, RSS"}]
     })
     return {"blocks": blocks}
 
@@ -171,10 +160,10 @@ def send_to_slack(message: dict) -> None:
     print("✅ Slack 전송 완료")
 
 def main() -> None:
-    print("⏳ IT 트렌드 수집 시작...")
+    print("⏳ IT 트렌드 및 번역 수집 시작...")
     hn_items = fetch_hacker_news(HN_TOP_N)
     rss_items = fetch_rss_feeds(RSS_FEEDS, RSS_TOP_N)
-    print(f"✅ 수집 완료: Hacker News {len(hn_items)}개, RSS {len(rss_items)}개")
+    print(f"✅ 수집 및 번역 완료: Hacker News {len(hn_items)}개, RSS {len(rss_items)}개")
 
     message = build_slack_message(hn_items, rss_items)
     send_to_slack(message)
