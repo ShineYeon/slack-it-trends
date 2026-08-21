@@ -87,6 +87,7 @@ def build_slack_message(hn_items: list[dict], rss_items: list[dict]) -> dict:
             "type": "section", 
             "text": {"type": "mrkdwn", "text": "*🔥 Hacker News 상위*"}})
         for i, item in enumerate(hn_items, start=1):
+            score = item.get("score")
             score_str = f" ({score}pt)" if score is not None else ""
             blocks.append({
                 "type": "section",
