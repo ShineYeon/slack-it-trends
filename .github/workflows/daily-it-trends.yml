@@ -1,0 +1,22 @@
+name: Daily IT Trends to Slack
+
+on:
+  schedule:
+    # UTC 00:00 = 한국시간(KST) 09:00
+    - cron: '0 0 * * *' # Runs every day at 00
+  workflow_dispatch: # 수동 실행 가능
+
+jobs:
+  send_slack_message:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack message
+        uses: actions/checkout@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Fetch and send
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python fetch_and_send.py
