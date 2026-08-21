@@ -15,8 +15,8 @@ HN_TOP_N = int(os.getenv("HN_TOP_N", 5))
 RSS_TOP_N = int(os.getenv("RSS_TOP_N", 3))
 
 RSS_FEEDS = [
-    "https://techcrunch.com/feed/",
-    "https://www.theverge.com/rss/index.xml",
+    "https://hada.io",       # 국내 최고 개발자 커뮤니티 (GeekNews)
+    "https://tldr.tech",       # 글로벌 최신 AI 트렌드 요약 (TLDR AI)
 ]
 
 HN_BASE = "https://hacker-news.firebaseio.com/v0"
